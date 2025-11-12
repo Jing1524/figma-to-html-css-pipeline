@@ -4,6 +4,7 @@ import { ClassifiedNode } from "@/app/lib/classifyNode";
 import {
   clamp01,
   cssClass,
+  cssForScaleMode,
   pushEffects,
   pushFill,
   pushStroke,
@@ -11,8 +12,12 @@ import {
   traverse,
   typographyRules,
 } from "./utils/render";
+import { ImageAssetMap } from "./imageMapper";
 
-export function buildStyles(rootFrames: ClassifiedNode[]): string {
+export function buildStyles(
+  rootFrames: ClassifiedNode[],
+  imageAssets?: ImageAssetMap
+): string {
   const chunks: string[] = [];
 
   for (const frame of rootFrames) {
@@ -67,6 +72,13 @@ export function buildStyles(rootFrames: ClassifiedNode[]): string {
       // Typography only on text nodes (html-text)
       if (node.renderAs === "html-text" && node.style.typography) {
         rules.push(...typographyRules(node.style.typography));
+      }
+
+      //Image assets
+      if (imageAssets && imageAssets[node.id]) {
+        const asset = imageAssets[node.id];
+        rules.push(`background-image:url("${asset.relativePath}")`);
+        rules.push(...cssForScaleMode(asset.scaleMode));
       }
 
       if (rules.length) {

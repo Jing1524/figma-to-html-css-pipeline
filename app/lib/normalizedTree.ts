@@ -11,6 +11,7 @@ import {
   Typography,
   RGBA,
   ColorStop,
+  ImageScaleMode,
 } from "@/app/type/normalized";
 
 type AnyNode = Record<string, unknown>;
@@ -21,9 +22,6 @@ type BoundingBox = {
   width?: number;
   height?: number;
 };
-
-type ImageFill = Extract<Fill, { kind: "image" }>;
-type ImageScaleMode = ImageFill["scaleMode"];
 
 export function normalizeFile(documentRoot: unknown): NormalizationResult {
   const warnings: string[] = [];

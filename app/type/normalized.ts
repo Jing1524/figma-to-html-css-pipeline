@@ -105,3 +105,11 @@ export interface NormalizationResult {
     masks: number;
   };
 }
+
+type ImageFill = Extract<Fill, { kind: "image" }>;
+export type ImageScaleMode = ImageFill["scaleMode"];
+
+export type ImageFillInfo = {
+  nodeId: string;
+  scaleMode: "FILL" | "FIT" | "TILE" | "CROP";
+};

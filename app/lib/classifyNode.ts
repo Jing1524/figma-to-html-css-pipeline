@@ -36,8 +36,7 @@ function hasMultipleStrokes(strokes?: Stroke[]): boolean {
 
 function hasNonSolidFill(fills?: Fill[]): boolean {
   if (!fills || fills.length === 0) return false;
-  // Any fill that isn't a simple solid triggers SVG
-  return fills.some((f) => f.kind !== "solid");
+  return fills.some((f) => f.kind !== "solid" && f.kind !== "image"); //allow image fills
 }
 
 function hasNonNormalBlend(blendMode?: string): boolean {

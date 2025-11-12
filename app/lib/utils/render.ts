@@ -1,4 +1,10 @@
-import { Effect, Fill, Stroke, Typography } from "@/app/type/normalized";
+import {
+  Effect,
+  Fill,
+  ImageFillInfo,
+  Stroke,
+  Typography,
+} from "@/app/type/normalized";
 import { ClassifiedNode } from "../classifyNode";
 
 export function traverse(
@@ -109,4 +115,37 @@ export function escapeHtml(s: string) {
 
 export function safeId(id: string) {
   return id.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
+export function cssForScaleMode(scale: ImageFillInfo["scaleMode"]): string[] {
+  switch (scale) {
+    case "FILL":
+      return [
+        "background-position:center;",
+        "background-repeat:no-repeat;",
+        "background-size:cover;",
+      ];
+    case "FIT":
+      return [
+        "background-position:center;",
+        "background-repeat:no-repeat;",
+        "background-size:contain;",
+      ];
+    case "TILE":
+      return ["background-repeat:repeat;", "background-size:auto;"];
+    case "CROP":
+      // Best-effort: same as FILL; exact crop would require positioning math or wrapper
+      return [
+        "background-position:center;",
+        "background-repeat:no-repeat;",
+        "background-size:cover;",
+        "overflow:hidden;",
+      ];
+    default:
+      return [
+        "background-position:center;",
+        "background-repeat:no-repeat;",
+        "background-size:cover;",
+      ];
+  }
 }
