@@ -25,8 +25,6 @@ type BoundingBox = {
 type ImageFill = Extract<Fill, { kind: "image" }>;
 type ImageScaleMode = ImageFill["scaleMode"];
 
-type;
-
 export function normalizeFile(documentRoot: unknown): NormalizationResult {
   const warnings: string[] = [];
   const frames: NormalizedNode[] = [];
