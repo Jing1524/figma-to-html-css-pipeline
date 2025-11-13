@@ -95,7 +95,8 @@ export function pushEffects(rules: string[], effects: Effect[]) {
 
 export function typographyRules(t: Typography): string[] {
   const out: string[] = [];
-  out.push(`font-family:${CSS.escape(t.fontFamily)}, system-ui, sans-serif;`);
+  const fontFamily = (t.fontFamily || "").trim();
+  out.push(`font-family:${fontFamily}, system-ui, sans-serif;`);
   out.push(`font-size:${px(t.fontSize)};`);
   if (t.lineHeightPx) out.push(`line-height:${px(t.lineHeightPx)};`);
   if (t.letterSpacing) out.push(`letter-spacing:${px(t.letterSpacing)};`);

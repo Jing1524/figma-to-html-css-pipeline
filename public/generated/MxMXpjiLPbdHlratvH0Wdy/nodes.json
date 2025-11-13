@@ -1,0 +1,101 @@
+{
+  "meta": {
+    "fileKey": "MxMXpjiLPbdHlratvH0Wdy",
+    "name": "Softlight Engineering Take-Home Assignment",
+    "lastModified": "2025-10-22T23:02:21Z",
+    "rendererVersion": "1.0.0"
+  },
+  "counts": {
+    "total": 14,
+    "html": 0,
+    "htmlText": 6,
+    "svg": 8
+  },
+  "warnings": [],
+  "nodes": [
+    {
+      "id": "1:75",
+      "name": "Frame",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:110",
+      "name": "Home Indicator",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:111",
+      "name": "Home Indicator",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:112",
+      "name": "Headline",
+      "type": "text",
+      "renderAs": "html-text"
+    },
+    {
+      "id": "1:114",
+      "name": "Frame 1321318736",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:115",
+      "name": "Frame 1321318734",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:116",
+      "name": "Headline",
+      "type": "text",
+      "renderAs": "html-text"
+    },
+    {
+      "id": "1:117",
+      "name": "Frame 1321318735",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:118",
+      "name": "Headline",
+      "type": "text",
+      "renderAs": "html-text"
+    },
+    {
+      "id": "1:120",
+      "name": "Frame",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:123",
+      "name": "label-text",
+      "type": "text",
+      "renderAs": "html-text"
+    },
+    {
+      "id": "1:125",
+      "name": "Frame",
+      "type": "frame",
+      "renderAs": "svg"
+    },
+    {
+      "id": "1:126",
+      "name": "label-text",
+      "type": "text",
+      "renderAs": "html-text"
+    },
+    {
+      "id": "1:127",
+      "name": "Headline",
+      "type": "text",
+      "renderAs": "html-text"
+    }
+  ]
+}

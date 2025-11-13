@@ -30,7 +30,7 @@ This approach generalizes to any Figma mock by analyzing node types and their pr
 
 ## 3: High-level Architecture
 
-### 1: Data flow overview
+### Data flow overview
 
 `User Input (fileKey, token) -> Figma REST API -> Normalized Tree (simplified node structure) -> Classification (HTML vs SVG rendering) -> Renderer (HTML/CSS/SVG generator) -> Output (index.html + styles.css)`
 

@@ -1,5 +1,3 @@
-"use server";
-import "server-only";
 import {
   NormalizedNode,
   NormalizationResult,
@@ -280,9 +278,15 @@ function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
 
     if (s.type === "SOLID") {
       const opacity = typeof s.opacity === "number" ? s.opacity : undefined;
-      out.push({ alignment, width, color: mapColor(s.color, opacity) });
+      out.push({
+        kind: "solid",
+        alignment,
+        width,
+        color: mapColor(s.color, opacity),
+      });
     } else if (String(s.type ?? "").startsWith("GRADIENT")) {
       out.push({
+        kind: "gradient",
         alignment,
         width,
         gradient: {

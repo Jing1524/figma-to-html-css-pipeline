@@ -3,7 +3,7 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export async function writeFiles(params: {
+export async function emitFiles(params: {
   fileKey: string;
   html: string;
   css: string;

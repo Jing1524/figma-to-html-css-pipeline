@@ -1,5 +1,3 @@
-"use server";
-import "server-only";
 import { NormalizedNode, Fill, Stroke } from "@/app/type/normalized";
 
 export type RenderAs = "html" | "html-text" | "svg";

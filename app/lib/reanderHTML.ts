@@ -1,6 +1,3 @@
-"use server";
-import "server-only";
-import path from "node:path";
 import { ClassifiedNode } from "@/app/lib/classifyNode";
 import { cssClass, escapeHtml, safeId } from "./utils/render";
 
