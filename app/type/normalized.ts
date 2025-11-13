@@ -52,6 +52,7 @@ export type Fill =
     };
 
 export interface Stroke {
+  kind: "solid" | "gradient";
   alignment: "CENTER" | "INSIDE" | "OUTSIDE";
   width: number;
   color?: RGBA;

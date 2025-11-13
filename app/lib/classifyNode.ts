@@ -19,7 +19,7 @@ export function classifyNode(node: NormalizedNode): RenderAs {
 
   // 2) Capability boundaries → SVG fallback
   if (hasMask) return "svg";
-  if (hasMultipleStrokes(strokes)) return "svg";
+  if (needsSvgForStrokes(strokes)) return "svg";
   if (hasNonSolidFill(fills)) return "svg";
   if (hasNonNormalBlend(blendMode)) return "svg";
 
@@ -29,9 +29,27 @@ export function classifyNode(node: NormalizedNode): RenderAs {
 
 // ---- helpers ----
 
-function hasMultipleStrokes(strokes?: Stroke[]): boolean {
+function needsSvgForStrokes(strokes?: Stroke[]): boolean {
   if (!strokes || strokes.length === 0) return false;
-  return strokes.length > 1;
+
+  // Multiple strokes → SVG (CSS cannot stack them faithfully)
+  if (strokes.length > 1) return true;
+
+  const s = strokes[0];
+
+  // Gradient stroke → SVG
+  if (s.kind !== "solid") return true;
+
+  // Stroke alignment: only CENTER is safe for CSS borders
+  if (s.alignment !== "CENTER") return true;
+
+  // Custom dash pattern → SVG
+  // TODO: the dashed line is more nuanced; CSS can do simple dashes, but not complex patterns
+  // if (Array.isArray(s.dashPattern) && s.dashPattern.length > 0) return true;
+  if (s.dashed) return true;
+
+  // Otherwise, CSS can handle this stroke
+  return false;
 }
 
 function hasNonSolidFill(fills?: Fill[]): boolean {
