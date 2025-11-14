@@ -58,6 +58,7 @@ export interface Stroke {
   color?: RGBA;
   dashed?: boolean;
   gradient?: { stops: ColorStop[]; angle?: number };
+  dashPattern?: number[];
 }
 
 export interface Effect {

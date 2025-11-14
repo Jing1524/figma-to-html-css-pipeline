@@ -310,6 +310,10 @@ function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
       (s as any).alignment ?? "CENTER"
     ) as Stroke["alignment"];
 
+    const dashPattern = Array.isArray((s as any).dashPattern)
+      ? ((s as any).dashPattern as number[])
+      : undefined;
+
     if (s.type === "SOLID") {
       const opacity =
         typeof (s as any).opacity === "number" ? (s as any).opacity : undefined;
@@ -318,6 +322,7 @@ function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
         alignment,
         width,
         color: mapColor((s as any).color, opacity),
+        dashPattern,
       });
     } else if (String(s.type ?? "").startsWith("GRADIENT")) {
       out.push({
@@ -328,6 +333,7 @@ function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
           stops: mapStops((s as any).gradientStops),
           angle: mapGradientAngle(s),
         },
+        dashPattern,
       });
     } else {
       warnings.push(`Unsupported stroke type: ${String(s.type ?? "")}`);
@@ -464,7 +470,7 @@ function mapGradientAngle(n: AnyNode): number {
   }
 
   // CSS linear-gradient(θdeg) uses 0deg = up, 90deg = right.
-  // The vector angle we computed is relative to the x-axis (right).
+  // The vector angle that's computed is relative to the x-axis (right).
   // A common mapping is:
   //   cssAngle = 90deg - vectorAngle
   let cssAngle = 90 - angleDeg;
