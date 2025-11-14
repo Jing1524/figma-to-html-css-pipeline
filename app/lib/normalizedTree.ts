@@ -21,15 +21,26 @@ type BoundingBox = {
   height?: number;
 };
 
+type NormalizationStats = {
+  nodesTotal: number;
+  frames: number;
+  texts: number;
+  vectors: number;
+  images: number;
+  gradients: number;
+  masks: number;
+};
+
 export function normalizeFile(documentRoot: unknown): NormalizationResult {
   const warnings: string[] = [];
   const frames: NormalizedNode[] = [];
 
-  // Figma file root: { document: { children: [ pages... ] } }
+  //`documentRoot`=> Figma document node (file.document),
+  // which has children = pages.
   const doc = documentRoot as AnyNode;
   const pages = getArray(doc?.children);
 
-  const stats = {
+  const stats: NormalizationStats = {
     nodesTotal: 0,
     frames: 0,
     texts: 0,
@@ -42,9 +53,9 @@ export function normalizeFile(documentRoot: unknown): NormalizationResult {
   for (const page of pages) {
     const pageChildren = getArray(page.children);
     for (const child of pageChildren) {
-      // Render top-level frames/sections/components; ignore guides, etc.
-      if (!isRenderable(child)) continue;
-      const n = toNormalized(child, warnings, stats);
+      // Render top-level frames/sections/components; ignore guides, slices, etc.
+      if (!isRenderable(child as AnyNode)) continue;
+      const n = toNormalized(child as AnyNode, warnings, stats);
       if (n) {
         frames.push(n);
       }
@@ -59,13 +70,13 @@ export function normalizeFile(documentRoot: unknown): NormalizationResult {
 function toNormalized(
   node: AnyNode,
   warnings: string[],
-  stats: any
+  stats: NormalizationStats
 ): NormalizedNode | null {
   stats.nodesTotal += 1;
 
   const id = String(node.id ?? "");
   const name = String(node.name ?? "");
-  const type = mapType(String(node.type ?? ""));
+  const type = mapType(node);
 
   if (!type) return null;
 
@@ -83,7 +94,9 @@ function toNormalized(
   return { id, name, type, layout, style, children };
 }
 
-function mapType(figmaType: string): NormalizedNode["type"] | null {
+function mapType(node: AnyNode): NormalizedNode["type"] | null {
+  const figmaType = String(node.type ?? "");
+
   switch (figmaType) {
     case "FRAME":
     case "GROUP":
@@ -91,8 +104,10 @@ function mapType(figmaType: string): NormalizedNode["type"] | null {
     case "INSTANCE":
     case "SECTION":
       return "frame";
+
     case "TEXT":
       return "text";
+
     case "VECTOR":
     case "LINE":
     case "ELLIPSE":
@@ -100,10 +115,19 @@ function mapType(figmaType: string): NormalizedNode["type"] | null {
     case "STAR":
     case "BOOLEAN_OPERATION":
       return "vector";
+
     case "RECTANGLE": {
-      // Rectangle can act as image if it has an IMAGE fill; otherwise frame/vector.
+      // Rectangle can act as image if it has an IMAGE fill; otherwise treat as frame.
+      const fills = getArray((node as { fills?: unknown }).fills);
+      const hasImageFill = fills.some(
+        (f) => String((f as AnyNode).type ?? "") === "IMAGE"
+      );
+      if (hasImageFill) {
+        return "image";
+      }
       return "frame";
     }
+
     default:
       return null;
   }
@@ -112,6 +136,7 @@ function mapType(figmaType: string): NormalizedNode["type"] | null {
 function mapLayout(node: AnyNode): LayoutModel {
   const boundingBox = node.absoluteBoundingBox as BoundingBox | undefined;
   const absolute = isAbsolute(node);
+
   if (absolute) {
     const x = toNum(boundingBox?.x);
     const y = toNum(boundingBox?.y);
@@ -159,10 +184,9 @@ function mapLayout(node: AnyNode): LayoutModel {
 }
 
 function isAbsolute(node: AnyNode): boolean {
-  // When layoutMode is NONE and constraints pin the node, we treat as absolute.
+  // Simple heuristic: when layoutMode is NONE, treat the node as absolutely positioned.
   const layoutMode = String(node.layoutMode ?? "NONE");
-  if (layoutMode !== "NONE") return false;
-  return true;
+  return layoutMode === "NONE";
 }
 
 function mapAlign(
@@ -180,6 +204,7 @@ function mapAlign(
     case "MAX":
       return "end";
     case "SPACE_BETWEEN":
+      // This is a bit of a compromise; there's no perfect mapping for counter-axis SPACE_BETWEEN.
       return "stretch";
     default:
       return undefined;
@@ -205,7 +230,11 @@ function mapJustify(
   }
 }
 
-function mapStyle(node: AnyNode, warnings: string[], stats: any): StyleModel {
+function mapStyle(
+  node: AnyNode,
+  warnings: string[],
+  stats: NormalizationStats
+): StyleModel {
   const fills = mapFills(getArray(node.fills), warnings, stats);
   const strokes = mapStrokes(getArray(node.strokes), warnings);
   const borderRadius = mapRadius(node);
@@ -213,7 +242,7 @@ function mapStyle(node: AnyNode, warnings: string[], stats: any): StyleModel {
   const typography = node.type === "TEXT" ? mapTypography(node) : undefined;
   const opacity = toNum(node.opacity, 1);
   const blendMode = node.blendMode ? String(node.blendMode) : undefined;
-  const hasMask = Boolean(node.isMask);
+  const hasMask = Boolean((node as { isMask?: boolean }).isMask);
 
   if (fills.some((f) => f.kind.endsWith("Gradient"))) stats.gradients += 1;
   if (hasMask) stats.masks += 1;
@@ -234,7 +263,7 @@ function mapFills(fills: AnyNode[], warnings: string[], _stats: any): Fill[] {
   const out: Fill[] = [];
   for (const f of fills) {
     const type = String(f.type ?? "");
-    const visible = f.visible ?? true;
+    const visible = (f.visible as boolean | undefined) ?? true;
     if (!visible) continue;
 
     if (type === "SOLID") {
@@ -256,7 +285,7 @@ function mapFills(fills: AnyNode[], warnings: string[], _stats: any): Fill[] {
       });
     } else if (type === "IMAGE") {
       const imageRef = String(f.imageRef ?? "");
-      const mode = f.scaleMode;
+      const mode = (f as AnyNode).scaleMode;
       const scaleMode: ImageScaleMode =
         mode === "FIT" || mode === "TILE" || mode === "CROP" ? mode : "FILL";
       out.push({ kind: "image", imageRef, scaleMode });
@@ -270,19 +299,25 @@ function mapFills(fills: AnyNode[], warnings: string[], _stats: any): Fill[] {
 function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
   const out: Stroke[] = [];
   for (const s of strokes) {
-    const visible = s.visible ?? true;
+    const visible = (s.visible as boolean | undefined) ?? true;
     if (!visible) continue;
 
-    const width = toNum(s.weight ?? s.strokeWeight ?? s.width, 1);
-    const alignment = String(s.alignment ?? "CENTER") as Stroke["alignment"];
+    const width = toNum(
+      (s as any).weight ?? (s as any).strokeWeight ?? (s as any).width,
+      1
+    );
+    const alignment = String(
+      (s as any).alignment ?? "CENTER"
+    ) as Stroke["alignment"];
 
     if (s.type === "SOLID") {
-      const opacity = typeof s.opacity === "number" ? s.opacity : undefined;
+      const opacity =
+        typeof (s as any).opacity === "number" ? (s as any).opacity : undefined;
       out.push({
         kind: "solid",
         alignment,
         width,
-        color: mapColor(s.color, opacity),
+        color: mapColor((s as any).color, opacity),
       });
     } else if (String(s.type ?? "").startsWith("GRADIENT")) {
       out.push({
@@ -290,7 +325,7 @@ function mapStrokes(strokes: AnyNode[], warnings: string[]): Stroke[] {
         alignment,
         width,
         gradient: {
-          stops: mapStops(s.gradientStops),
+          stops: mapStops((s as any).gradientStops),
           angle: mapGradientAngle(s),
         },
       });
@@ -326,7 +361,7 @@ function mapEffects(effects: AnyNode[]): Effect[] {
 }
 
 function mapTypography(node: AnyNode): Typography {
-  const s = node.style ?? {};
+  const s = (node as { style?: AnyNode }).style ?? {};
   return {
     fontFamily: String((s as any).fontFamily ?? "system-ui"),
     fontPostScriptName: (s as any).fontPostScriptName ?? undefined,
@@ -378,27 +413,76 @@ function mapColor(color: any, opacity?: number): RGBA {
   const r = toNum(color?.r, 0);
   const g = toNum(color?.g, 0);
   const b = toNum(color?.b, 0);
-  // Figma colors are 0..1; convert to 0..255 in CSS mapping later if needed.
+  // Figma colors are 0..1
   const a = typeof opacity === "number" ? opacity : toNum(color?.a, 1);
   return { r, g, b, a };
 }
 
 function mapStops(stops: unknown): ColorStop[] {
   return (Array.isArray(stops) ? stops : []).map((s) => ({
-    position: toNum(s?.position, 0),
-    color: mapColor(s?.color, s?.opacity),
+    position: toNum((s as any)?.position, 0),
+    color: mapColor((s as any)?.color, (s as any)?.opacity),
   }));
 }
 
 function mapGradientAngle(n: AnyNode): number {
-  // Figma gradients have "gradientTransform" matrix; for MVP keep angle=0,
-  // TODO: handle exact angles later. This keeps logic simple now.
-  const angle = 0;
-  return angle;
+  // Figma gradients have a 2x3 "gradientTransform" matrix:
+  // [
+  //   [a, c, tx],
+  //   [b, d, ty],
+  // ]
+  //first column (a, b) is the direction vector.
+  const transform = (n as any).gradientTransform as number[][] | undefined;
+  if (!Array.isArray(transform) || transform.length < 2) {
+    return 0;
+  }
+
+  const [row0, row1] = transform;
+  if (
+    !Array.isArray(row0) ||
+    !Array.isArray(row1) ||
+    row0.length < 2 ||
+    row1.length < 2
+  ) {
+    return 0;
+  }
+
+  const a = row0[0]; // x of direction vector
+  const b = row1[0]; // y of direction vector
+
+  if (typeof a !== "number" || typeof b !== "number" || (!a && !b)) {
+    return 0;
+  }
+
+  // Angle of the direction vector in radians
+  const angleRad = Math.atan2(b, a);
+  let angleDeg = (angleRad * 180) / Math.PI;
+
+  // Normalize to [0, 360)
+  if (angleDeg < 0) {
+    angleDeg += 360;
+  }
+
+  // CSS linear-gradient(θdeg) uses 0deg = up, 90deg = right.
+  // The vector angle we computed is relative to the x-axis (right).
+  // A common mapping is:
+  //   cssAngle = 90deg - vectorAngle
+  let cssAngle = 90 - angleDeg;
+
+  // Normalize again to keep it in [0, 360)
+  cssAngle = ((cssAngle % 360) + 360) % 360;
+
+  return cssAngle;
 }
 
 function isRenderable(node: AnyNode): boolean {
   const type = String(node.type ?? "");
-  if (type === "SLICE" || type === "GUIDE") return false;
+  const visible = (node as { visible?: boolean }).visible;
+  if (visible === false) return false;
+
+  // Skip non-visual node types
+  if (type === "SLICE" || type === "GUIDE" || type === "COMPONENT_SET") {
+    return false;
+  }
   return true;
 }

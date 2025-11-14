@@ -1,6 +1,7 @@
 "use server";
 import "server-only";
 import path from "node:path";
+import fs from "node:fs/promises";
 import {
   ensureDir,
   fileExists,
@@ -22,6 +23,10 @@ type FigmaFileResponse = {
   components?: Record<string, unknown>;
   styles?: Record<string, unknown>;
   // keep it loose, only need top fields for now
+};
+
+type SvgCacheMeta = {
+  lastModified: string | null;
 };
 
 function getRequiredEnv(name: string): string {
@@ -46,6 +51,34 @@ function cachePaths() {
   return { root, files, svgs };
 }
 
+async function readSvgCacheMeta(
+  svgsRoot: string,
+  fileKey: string
+): Promise<SvgCacheMeta | null> {
+  const metaPath = path.join(svgsRoot, fileKey, "__meta.json");
+  if (!(await fileExists(metaPath))) return null;
+  try {
+    return await readJson<SvgCacheMeta>(metaPath);
+  } catch (err) {
+    console.warn(
+      `Failed to read SVG cache meta for fileKey=${fileKey}, ignoring cache`,
+      err
+    );
+    return null;
+  }
+}
+
+async function writeSvgCacheMeta(
+  svgsRoot: string,
+  fileKey: string,
+  meta: SvgCacheMeta
+): Promise<void> {
+  const dir = path.join(svgsRoot, fileKey);
+  await ensureDir(dir);
+  const metaPath = path.join(dir, "__meta.json");
+  await writeJson(metaPath, meta);
+}
+
 /**
  * Fetch Figma file JSON, with simple disk cache.
  * - First tries `.cache/figma/files/<fileKey>--latest.json`
@@ -63,12 +96,20 @@ export async function fetchFileJson(
   const latestPath = path.join(files, `${fileKey}--latest.json`);
 
   if (options.useCache !== false && (await fileExists(latestPath))) {
-    return readJson<FigmaFileResponse>(latestPath);
+    try {
+      return await readJson<FigmaFileResponse>(latestPath);
+    } catch (err) {
+      // Corrupted cache: log and fall through to refetch
+      console.warn(
+        `Failed to read cached Figma file JSON for fileKey=${fileKey}, refetching`,
+        err
+      );
+    }
   }
 
   const res = await fetch(`${FIGMA_API}/files/${encodeURIComponent(fileKey)}`, {
     headers: authHeaders(),
-    // Explicitly avoid Next caching here, caching to local disk
+    // Explicitly avoid Next caching here, caching to local disk instead
     cache: "no-store",
   });
 
@@ -90,18 +131,47 @@ export async function fetchFileJson(
 
 /**
  * Export a set of node IDs as SVGs (batched), cache results to disk,
- * and return a map nodeId -> local SVG path.
+ * and return a map nodeId -> local filesystem SVG path.
+ *
+ * When `fileLastModified` is provided, the SVG cache is invalidated
+ * if it was generated against an older version of the Figma file.
  */
 export async function exportNodeSvgs(
   fileKey: string,
   nodeIds: string[],
-  options: { batchSize?: number; useCache?: boolean } = {}
+  options: {
+    batchSize?: number;
+    useCache?: boolean;
+    fileLastModified?: string;
+  } = {}
 ): Promise<Record<string, string>> {
   const { svgs } = cachePaths();
   await ensureDir(svgs);
 
   const batchSize = options.batchSize ?? 40;
   const result: Record<string, string> = {};
+
+  const svgDirForFile = path.join(svgs, fileKey);
+
+  // If the file's lastModified is known, keep SVG cache in sync with it.
+  if (options.useCache !== false && options.fileLastModified) {
+    const meta = await readSvgCacheMeta(svgs, fileKey);
+    const cachedLastModified = meta?.lastModified ?? null;
+    if (cachedLastModified && cachedLastModified !== options.fileLastModified) {
+      // if file changed on Figma's side -> invalidate SVG cache for this file
+      try {
+        await fs.rm(svgDirForFile, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(
+          `Failed to clear stale SVG cache for fileKey=${fileKey}`,
+          err
+        );
+      }
+    }
+  }
+
+  // Ensure dir exists after potential invalidation
+  await ensureDir(svgDirForFile);
 
   // Determine which node IDs still need fetching
   const missing: string[] = [];
@@ -117,6 +187,8 @@ export async function exportNodeSvgs(
   // Batch fetch URLs from images endpoint
   for (let i = 0; i < missing.length; i += batchSize) {
     const slice = missing.slice(i, i + batchSize);
+    if (slice.length === 0) continue;
+
     const url = `${FIGMA_API}/images/${encodeURIComponent(
       fileKey
     )}?ids=${encodeURIComponent(slice.join(","))}&format=svg`;
@@ -155,6 +227,13 @@ export async function exportNodeSvgs(
       await writeText(localPath, svgText);
       result[nodeId] = localPath;
     }
+  }
+
+  // Update SVG cache metadata if we know the file's lastModified
+  if (options.fileLastModified) {
+    await writeSvgCacheMeta(svgs, fileKey, {
+      lastModified: options.fileLastModified,
+    });
   }
 
   return result;

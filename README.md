@@ -61,25 +61,32 @@ Raw Figma data is verbose and nested, transform it into a minimal intermediate m
 interface NormalizedNode {
   id: string;
   name: string;
-  type: 'frame' | 'text' | 'vector' | 'image';
+  type: 'frame' | 'group'| 'component'| 'instance'  | 'rectangle'| 'ellipse'| 'text'| 'vector'| 'boolean'| 'image';
   layout: {
     display: 'flex' | 'grid' | 'absolute';
     direction?: 'row' | 'column';
-    gap?: number;
-    padding?: number;
-    align?: string;
-    justify?: string;
-    width?: number;
-    height?: number;
+    gap?: { row?: number; column?: number };
+    padding?: { top: number; right: number; bottom: number; left: number };
+    alignItems?: 'flex-start' | 'center' | 'flex-end' | 'stretch' | 'baseline';
+    justifyContent?: 'flex-start' | 'center' | 'flex-end' | 'space-between' | 'space-around';
+    position?: 'relative' | 'absolute';
+    x?: number;
+    y?: number;
+    width?: number | 'hug' | 'fill';
+    height?: number | 'hug' | 'fill';
   };
   style: {
     fills?: Fill[];
     strokes?: Stroke[];
-    borderRadius?: number;
+    borderRadius?: number | { tl: number; tr: number; br: number; bl: number };
     effects?: Effect[];
     typography?: Typography;
     opacity?: number;
     blendMode?: string;
+    strokeAlign?: string;
+    dashPattern?: string;
+    clipContent?: string;
+    rotation?: number;
   };
   children?: NormalizedNode[];
 }

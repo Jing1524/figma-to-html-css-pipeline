@@ -84,16 +84,13 @@ export async function POST(req: Request) {
     // 8) Build CSS and HTML
     const css = buildStyles(classifiedFrames, imageAssets);
     const html = buildIndexHtml(fileKey, classifiedFrames);
-    console.log(`Built HTML and CSS for ${fileKey}`);
-    console.log({ css });
+
     // 9) Emit index.html + styles.css
     const { outDir, assetsDir: finalAssetsDir } = await emitFiles({
       fileKey,
       html,
       css,
     });
-
-    console.log(`Generated files for ${fileKey} in ${outDir}`);
 
     // 10) Emit SVG assets for nodes classified as svg
     await emitSvgAssets({
