@@ -4,6 +4,8 @@ import {
   ImageFillInfo,
   Stroke,
   Typography,
+  ColorStop,
+  RGBA,
 } from "@/app/type/normalized";
 import { ClassifiedNode } from "../classifyNode";
 
@@ -37,60 +39,130 @@ export function rgba(c: { r: number; g: number; b: number; a: number }) {
   return `rgba(${r},${g},${b},${clamp01(c.a)})`;
 }
 
+/**
+ * Map Figma fills → CSS backgrounds.
+ *
+ * Supports:
+ * - multiple fills
+ * - solid colors
+ * - linear gradients
+ * - radial gradients
+ * - conic gradients
+ *
+ * NOTE:
+ * - Image fills are handled separately via imageAssets / cssForScaleMode.
+ */
 export function pushFill(rules: string[], fills: Fill[]) {
   if (!fills || fills.length === 0) return;
-  // Capability policy: only SOLID here; others handled via SVG fallback in HTML stage
-  const solid = fills.find((f) => f.kind === "solid");
-  if (solid) rules.push(`background:${rgba(solid.color)};`);
-}
 
-export function pushStroke(rules: string[], strokes: Stroke[]) {
-  if (!strokes || strokes.length === 0) return;
-  if (strokes.length > 1) return; // multi-stroke → SVG handled in HTML stage
-  const s = strokes[0];
+  // Ignore image fills here; they are handled by imageAssets mapping.
+  const usable = fills.filter((f) => f.kind !== "image");
+  if (usable.length === 0) return;
 
-  // Only solid CENTER stroke maps cleanly to CSS border.
-  if (s.color && !s.gradient && s.alignment === "CENTER") {
-    rules.push(
-      `border:${px(s.width)} solid ${rgba({ ...s.color, a: s.color.a ?? 1 })};`
-    );
-  } else if (s.color && !s.gradient && s.alignment === "INSIDE") {
-    rules.push(
-      `box-shadow: inset 0 0 0 ${px(s.width)} ${rgba({
-        ...s.color,
-        a: s.color.a ?? 1,
-      })};`
-    );
-  } else if (s.color && !s.gradient && s.alignment === "OUTSIDE") {
-    rules.push(
-      `box-shadow: 0 0 0 ${px(s.width)} ${rgba({
-        ...s.color,
-        a: s.color.a ?? 1,
-      })};`
-    );
+  const layers: string[] = [];
+
+  // Figma paints: last is topmost. In CSS backgrounds, first is topmost.
+  // So iterate from last → first and unshift each, or push in reverse.
+  for (let i = usable.length - 1; i >= 0; i--) {
+    const f = usable[i];
+    switch (f.kind) {
+      case "solid": {
+        layers.push(rgba(f.color));
+        break;
+      }
+      case "linearGradient": {
+        const stops = gradientStopsToCss(f.stops);
+        const angle = f.angle ?? 0;
+        layers.push(`linear-gradient(${angle}deg, ${stops})`);
+        break;
+      }
+      case "radialGradient": {
+        const stops = gradientStopsToCss(f.stops);
+        // intentionally not to match exact Figma radius/position; center circle is a good approximation for scope.
+        layers.push(`radial-gradient(circle at center, ${stops})`);
+        break;
+      }
+      case "conicGradient": {
+        const stops = gradientStopsToCss(f.stops);
+        const angle = f.angle ?? 0;
+        layers.push(`conic-gradient(from ${angle}deg at 50% 50%, ${stops})`);
+        break;
+      }
+      default:
+        // Unknown fill kinds are ignored here; classifier already sent these to SVG rendering
+        break;
+    }
+  }
+
+  if (layers.length > 0) {
+    rules.push(`background:${layers.join(",")};`);
   }
 }
 
+/**
+ * Strokes → CSS borders / box-shadow.
+ *
+ * By the time we get here, classifier guarantees:
+ * - at most one stroke
+ * - solid strokes only
+ * - CENTER alignment only
+ * - no dashPattern (those go to SVG)
+ */
+export function pushStroke(rules: string[], strokes: Stroke[]) {
+  if (!strokes || strokes.length === 0) return;
+  if (strokes.length > 1) return;
+
+  const s = strokes[0];
+
+  // Only solid with color can map to CSS border.
+  if (s.kind !== "solid" || !s.color) return;
+
+  // Dashed pattern: -> render as SVG
+  if (Array.isArray(s.dashPattern) && s.dashPattern.length > 0) return;
+
+  if (s.alignment === "CENTER") {
+    rules.push(`border:${px(s.width)} solid ${rgba(s.color)};`);
+    return;
+  }
+
+  // defensive check; classifier should prevent this
+  if (s.alignment === "INSIDE") {
+    rules.push(`box-shadow:inset 0 0 0 ${px(s.width)} ${rgba(s.color)};`);
+  } else if (s.alignment === "OUTSIDE") {
+    rules.push(`box-shadow:0 0 0 ${px(s.width)} ${rgba(s.color)};`);
+  }
+}
+
+/**
+ * Effects → CSS box-shadow.
+ *
+ * Classifier guarantees:
+ * - at most one shadow effect
+ * - no blur effects (those renders as SVG)
+ */
 export function pushEffects(rules: string[], effects: Effect[]) {
   if (!effects || effects.length === 0) return;
+
   const shadows = effects.filter(
     (e) => e.type === "DROP_SHADOW" || e.type === "INNER_SHADOW"
   );
-  if (shadows.length) {
-    const shadowStr = shadows
-      .map((e) => {
-        const x = px(e.x ?? 0);
-        const y = px(e.y ?? 0);
-        const blur = px(e.blur ?? 0);
-        const spread = px(e.spread ?? 0);
-        const col = e.color ? rgba(e.color) : "rgba(0,0,0,0.25)";
-        const inset = e.type === "INNER_SHADOW" ? " inset" : "";
-        return `${x} ${y} ${blur} ${spread} ${col}${inset}`;
-      })
-      .join(",");
-    rules.push(`box-shadow:${shadowStr};`);
-  }
-  // Blurs/mix-blend beyond this are handled via SVG
+  if (!shadows.length) return;
+
+  // defensive: classifier should prevent shadows
+  const shadowStr = shadows
+    .map((e) => {
+      const x = px(e.x ?? 0);
+      const y = px(e.y ?? 0);
+      const blur = px(e.blur ?? 0);
+      const spread = px(e.spread ?? 0);
+      const col = e.color ? rgba(e.color) : "rgba(0,0,0,0.25)";
+      const inset = e.type === "INNER_SHADOW" ? " inset" : "";
+      return `${x} ${y} ${blur} ${spread} ${col}${inset}`;
+    })
+    .join(",");
+
+  rules.push(`box-shadow:${shadowStr};`);
+  // Blurs and other complex effects are handled via SVG.
 }
 
 export function typographyRules(t: Typography): string[] {
@@ -135,7 +207,7 @@ export function cssForScaleMode(scale: ImageFillInfo["scaleMode"]): string[] {
     case "TILE":
       return ["background-repeat:repeat;", "background-size:auto;"];
     case "CROP":
-      // Best-effort: same as FILL; exact crop would require positioning math or wrapper
+      // Best-effort: exact crop would require positioning math or wrapper
       return [
         "background-position:center;",
         "background-repeat:no-repeat;",
@@ -149,4 +221,16 @@ export function cssForScaleMode(scale: ImageFillInfo["scaleMode"]): string[] {
         "background-size:cover;",
       ];
   }
+}
+
+// ---------- internal helpers ----------
+
+function gradientStopsToCss(stops: ColorStop[]): string {
+  return stops
+    .map((s) => {
+      const color = rgba(s.color);
+      const posPercent = Math.round((s.position ?? 0) * 1000) / 10;
+      return `${color} ${posPercent}%`;
+    })
+    .join(", ");
 }

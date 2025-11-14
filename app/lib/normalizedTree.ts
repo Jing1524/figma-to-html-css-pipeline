@@ -54,8 +54,8 @@ export function normalizeFile(documentRoot: unknown): NormalizationResult {
     const pageChildren = getArray(page.children);
     for (const child of pageChildren) {
       // Render top-level frames/sections/components; ignore guides, slices, etc.
-      if (!isRenderable(child as AnyNode)) continue;
-      const n = toNormalized(child as AnyNode, warnings, stats);
+      if (!isRenderable(child)) continue;
+      const n = toNormalized(child, warnings, stats, undefined, "NONE");
       if (n) {
         frames.push(n);
       }
@@ -70,14 +70,15 @@ export function normalizeFile(documentRoot: unknown): NormalizationResult {
 function toNormalized(
   node: AnyNode,
   warnings: string[],
-  stats: NormalizationStats
+  stats: any,
+  parentBox?: BoundingBox,
+  parentLayoutMode: string = "NONE"
 ): NormalizedNode | null {
   stats.nodesTotal += 1;
 
   const id = String(node.id ?? "");
   const name = String(node.name ?? "");
   const type = mapType(node);
-
   if (!type) return null;
 
   if (type === "text") stats.texts += 1;
@@ -85,13 +86,24 @@ function toNormalized(
   if (type === "image") stats.images += 1;
   if (type === "frame") stats.frames += 1;
 
-  const layout = mapLayout(node);
+  const layout = mapLayout(node, parentBox, parentLayoutMode);
   const style = mapStyle(node, warnings, stats);
+
+  const text =
+    type === "text" ? String((node as any).characters ?? "") : undefined;
+
+  const thisBox = node.absoluteBoundingBox as BoundingBox | undefined;
+  const thisLayoutMode = String(node.layoutMode ?? "NONE");
+  // const thisHasAutoLayout =
+  //   thisLayoutMode === "HORIZONTAL" || thisLayoutMode === "VERTICAL";
+
   const children = getArray(node.children)
-    .map((child) => toNormalized(child as AnyNode, warnings, stats))
+    .map((child) =>
+      toNormalized(child, warnings, stats, thisBox, thisLayoutMode)
+    )
     .filter(Boolean) as NormalizedNode[];
 
-  return { id, name, type, layout, style, children };
+  return { id, name, type, layout, style, text, children };
 }
 
 function mapType(node: AnyNode): NormalizedNode["type"] | null {
@@ -133,60 +145,106 @@ function mapType(node: AnyNode): NormalizedNode["type"] | null {
   }
 }
 
-function mapLayout(node: AnyNode): LayoutModel {
+function mapLayout(
+  node: AnyNode,
+  parentBox?: BoundingBox,
+  parentLayoutMode: string = "NONE"
+): LayoutModel {
   const boundingBox = node.absoluteBoundingBox as BoundingBox | undefined;
-  const absolute = isAbsolute(node);
 
-  if (absolute) {
-    const x = toNum(boundingBox?.x);
-    const y = toNum(boundingBox?.y);
+  const layoutMode = String((node as any).layoutMode ?? "NONE"); // 'HORIZONTAL' | 'VERTICAL' | 'NONE'
+  const layoutPositioning = String((node as any).layoutPositioning ?? "AUTO"); // 'AUTO' | 'ABSOLUTE' (Figma)
+  const nodeHasAuto = layoutMode === "HORIZONTAL" || layoutMode === "VERTICAL";
+  const parentHasAuto =
+    parentLayoutMode === "HORIZONTAL" || parentLayoutMode === "VERTICAL";
+
+  // 1) Auto-layout frames → real flex containers
+  if (nodeHasAuto) {
+    const direction = layoutMode === "HORIZONTAL" ? "row" : "column";
+
+    const padding = {
+      top: toNum((node as any).paddingTop),
+      right: toNum((node as any).paddingRight),
+      bottom: toNum((node as any).paddingBottom),
+      left: toNum((node as any).paddingLeft),
+    };
+
+    const gap = toNum((node as any).itemSpacing);
+    const align = mapAlign(
+      (node as any).primaryAxisAlignItems,
+      (node as any).counterAxisAlignItems,
+      direction
+    );
+    const justify = mapJustify((node as any).primaryAxisAlignItems, direction);
+
     const width = toNum(boundingBox?.width);
-    const height = toNum(boundingBox?.height);
-    return { display: "absolute", x, y, width, height };
+    // If Figma does not specify a fixed height, use 'auto' for flex containers
+    let height: number | "auto" = toNum(boundingBox?.height);
+    if (!height || height === 0) {
+      height = "auto";
+    }
+
+    return {
+      display: "flex",
+      direction,
+      padding,
+      gap,
+      align,
+      justify,
+      width,
+      height,
+    };
   }
 
-  const layoutMode = String(node.layoutMode ?? "NONE"); // 'HORIZONTAL' | 'VERTICAL' | 'NONE'
-  const direction =
-    layoutMode === "HORIZONTAL"
-      ? "row"
-      : layoutMode === "VERTICAL"
-      ? "column"
-      : undefined;
+  // 2) Children of auto-layout frames:
+  //    - layoutPositioning: 'AUTO' → normal in-flow item (block)
+  //    - layoutPositioning: 'ABSOLUTE' → absolutely positioned within parent
+  if (parentHasAuto && layoutPositioning !== "ABSOLUTE") {
+    const width = toNum(boundingBox?.width);
+    const height = toNum(boundingBox?.height);
+    return {
+      display: "block",
+      width,
+      height,
+    };
+  }
 
-  const padding = {
-    top: toNum(node.paddingTop),
-    right: toNum(node.paddingRight),
-    bottom: toNum(node.paddingBottom),
-    left: toNum(node.paddingLeft),
-  };
-
-  const gap = toNum(node.itemSpacing);
-  const align = mapAlign(
-    node.primaryAxisAlignItems,
-    node.counterAxisAlignItems,
-    direction
-  );
-  const justify = mapJustify(node.primaryAxisAlignItems, direction);
-
+  // 3) Everything else (no auto layout on self or parent) → absolute
+  const absX = toNum(boundingBox?.x);
+  const absY = toNum(boundingBox?.y);
   const width = toNum(boundingBox?.width);
   const height = toNum(boundingBox?.height);
 
+  const parentX = toNum(parentBox?.x, 0);
+  const parentY = toNum(parentBox?.y, 0);
+
+  const x = absX - parentX;
+  const y = absY - parentY;
+
   return {
-    display: direction ? "flex" : "absolute", // default to absolute if no auto-layout
-    direction,
-    padding,
-    gap,
-    align,
-    justify,
+    display: "absolute",
+    x,
+    y,
     width,
     height,
   };
 }
 
-function isAbsolute(node: AnyNode): boolean {
+function isAbsolute(node: AnyNode, parentHasAutoLayout: boolean): boolean {
   // Simple heuristic: when layoutMode is NONE, treat the node as absolutely positioned.
   const layoutMode = String(node.layoutMode ?? "NONE");
-  return layoutMode === "NONE";
+  // If this node itself has auto layout, it's a flex container, not absolute.
+  if (layoutMode === "HORIZONTAL" || layoutMode === "VERTICAL") {
+    return false;
+  }
+
+  // If the parent has auto layout, the child participates in flex flow.
+  if (parentHasAutoLayout) {
+    return false;
+  }
+
+  // Otherwise, treat this node as absolutely positioned.
+  return true;
 }
 
 function mapAlign(

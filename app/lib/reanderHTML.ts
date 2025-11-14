@@ -27,18 +27,45 @@ function renderNode(node: ClassifiedNode): string {
   const cls = cssClass(node.id);
 
   if (node.renderAs === "html-text") {
-    // Use <p> as default; can refine to <h*> via name heuristics later.
-    const content = escapeHtml((node as any).name ?? "");
-    return `<p class="${cls}">${content}</p>`;
+    return renderTextElement(node, cls);
   }
 
   if (node.renderAs === "svg") {
-    // The actual <img src> will be filled during copying into assets
+    // The actual <img src> will be filled from generated assets/
     const svgFile = `${safeId(node.id)}.svg`;
     return `<img class="${cls}" src="./assets/${svgFile}" alt="" />`;
   }
 
-  // html
+  // html container node
   const children = node.children.map(renderNode).join("");
   return `<div class="${cls}">${children}</div>`;
+}
+
+/**
+ * Render a text node. Supports:
+ * - simple text (node.text)
+ * - mixed-style spans (node.spans)
+ * - line breaks via <br/>
+ */
+function renderTextElement(node: ClassifiedNode, baseClass: string): string {
+  // Prefer spans if present; fall back to raw text
+  const spans = node.spans;
+  let innerHtml: string;
+
+  if (Array.isArray(spans) && spans.length > 0) {
+    innerHtml = spans
+      .map((span, index) => {
+        const spanClass = `${baseClass}__span-${index}`;
+        const rawText = span.text ?? "";
+        const escaped = escapeHtml(rawText).replace(/\n/g, "<br/>");
+        return `<span class="${spanClass}">${escaped}</span>`;
+      })
+      .join("");
+  } else {
+    const rawText = node.text ?? "";
+    const escaped = escapeHtml(rawText).replace(/\n/g, "<br/>");
+    innerHtml = escaped;
+  }
+
+  return `<p class="${baseClass}">${innerHtml}</p>`;
 }

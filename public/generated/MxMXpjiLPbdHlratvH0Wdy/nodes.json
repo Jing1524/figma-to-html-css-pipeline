@@ -7,9 +7,9 @@
   },
   "counts": {
     "total": 14,
-    "html": 0,
+    "html": 6,
     "htmlText": 6,
-    "svg": 8
+    "svg": 2
   },
   "warnings": [],
   "nodes": [
@@ -17,85 +17,113 @@
       "id": "1:75",
       "name": "Frame",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 6,
+      "collapsedToSvg": false
     },
     {
       "id": "1:110",
       "name": "Home Indicator",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 1,
+      "collapsedToSvg": false
     },
     {
       "id": "1:111",
       "name": "Home Indicator",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:112",
       "name": "Headline",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:114",
       "name": "Frame 1321318736",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 2,
+      "collapsedToSvg": false
     },
     {
       "id": "1:115",
       "name": "Frame 1321318734",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 1,
+      "collapsedToSvg": false
     },
     {
       "id": "1:116",
       "name": "Headline",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:117",
       "name": "Frame 1321318735",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "html",
+      "childCount": 1,
+      "collapsedToSvg": false
     },
     {
       "id": "1:118",
       "name": "Headline",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:120",
       "name": "Frame",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "svg",
+      "childCount": 1,
+      "collapsedToSvg": true
     },
     {
       "id": "1:123",
       "name": "label-text",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:125",
       "name": "Frame",
       "type": "frame",
-      "renderAs": "svg"
+      "renderAs": "svg",
+      "childCount": 1,
+      "collapsedToSvg": true
     },
     {
       "id": "1:126",
       "name": "label-text",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     },
     {
       "id": "1:127",
       "name": "Headline",
       "type": "text",
-      "renderAs": "html-text"
+      "renderAs": "html-text",
+      "childCount": 0,
+      "collapsedToSvg": false
     }
   ]
 }

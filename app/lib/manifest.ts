@@ -10,24 +10,32 @@ export async function emitManifest(params: {
   frames: ClassifiedNode[];
   warnings: string[];
 }) {
+  const { fileKey, meta, frames, warnings } = params;
+
+  const allNodes = flatten(frames);
+  const counts = summarize(allNodes);
+
   const manifest = {
     meta: {
-      fileKey: params.fileKey,
-      name: params.meta.name,
-      lastModified: params.meta.lastModified,
+      fileKey,
+      name: meta.name,
+      lastModified: meta.lastModified,
       rendererVersion: "1.0.0",
     },
-    counts: summarize(params.frames),
-    warnings: params.warnings,
-    nodes: flatten(params.frames).map((n) => ({
+    counts,
+    warnings,
+    nodes: allNodes.map((n) => ({
       id: n.id,
       name: n.name,
       type: n.type,
-      renderAs: (n as any).renderAs as RenderAs,
+      renderAs: n.renderAs as RenderAs,
+      childCount: n.children.length,
+      // Useful to see when a whole subtree has been flattened into one SVG asset
+      collapsedToSvg: n.renderAs === "svg" && n.children.length > 0,
     })),
   };
 
-  const dir = path.join(process.cwd(), "public", "generated", params.fileKey);
+  const dir = path.join(process.cwd(), "public", "generated", fileKey);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(
     path.join(dir, "nodes.json"),
@@ -37,12 +45,11 @@ export async function emitManifest(params: {
 }
 
 function summarize(nodes: ClassifiedNode[]) {
-  const all = flatten(nodes);
   return {
-    total: all.length,
-    html: all.filter((n) => (n as any).renderAs === "html").length,
-    htmlText: all.filter((n) => (n as any).renderAs === "html-text").length,
-    svg: all.filter((n) => (n as any).renderAs === "svg").length,
+    total: nodes.length,
+    html: nodes.filter((n) => n.renderAs === "html").length,
+    htmlText: nodes.filter((n) => n.renderAs === "html-text").length,
+    svg: nodes.filter((n) => n.renderAs === "svg").length,
   };
 }
 

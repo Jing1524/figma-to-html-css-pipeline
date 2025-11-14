@@ -6,18 +6,20 @@ export interface NormalizedNode {
   type: RenderKind;
   layout: LayoutModel;
   style: StyleModel;
+  text?: string; // for simple text nodes
+  spans?: TextSpan[]; // for rich text nodes
   children: NormalizedNode[];
 }
 
 export interface LayoutModel {
-  display: "flex" | "grid" | "absolute";
+  display: "flex" | "grid" | "absolute" | "block";
   direction?: "row" | "column";
   gap?: number;
   padding?: { top: number; right: number; bottom: number; left: number };
   align?: "start" | "center" | "end" | "stretch";
   justify?: "start" | "center" | "end" | "space-between";
   width?: number; //px
-  height?: number; //px
+  height?: number | 'auto'; //px or 'auto'
   x?: number; //px
   y?: number; //px
 }
@@ -115,3 +117,7 @@ export type ImageFillInfo = {
   nodeId: string;
   scaleMode: "FILL" | "FIT" | "TILE" | "CROP";
 };
+
+export interface TextSpan {
+  text: string;
+}

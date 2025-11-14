@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import path from "path";
+
 import { fetchFileJson } from "@/app/lib/figmaClient";
 import { normalizeFile } from "@/app/lib/normalizedTree";
 import { classifyTree } from "@/app/lib/classifyNode";
-import path from "path";
 import { prepareImageAssets } from "@/app/lib/imageMapper";
 import { buildStyles } from "@/app/lib/renderCss";
 import { buildIndexHtml } from "@/app/lib/reanderHTML";
@@ -10,7 +11,7 @@ import { emitSvgAssets } from "@/app/lib/renderSVG";
 import { emitManifest } from "@/app/lib/manifest";
 import { emitFiles } from "@/app/lib/emitFiles";
 
-// Force Node.js runtime avoid edge caching: usage of fs in the client
+// Force Node.js runtime avoid edge caching issues with fs operations
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -47,38 +48,32 @@ export async function POST(req: Request) {
       document: unknown;
     };
 
-    // 3) Quick stat: count nodes (shallow-safe)
+    // 3) Quick stat: count nodes in the document
     const stats = {
       nodeCount: countNodes(document),
     };
 
     // 4) Normalize the Figma document into intermediate model
     const normalized = normalizeFile(document);
+
     // 5) Classify each frame (html | html-text | svg)
     const classifiedFrames = normalized.frames.map((frame) =>
       classifyTree(frame)
     );
 
-    // 6) Compute output dirs
+    // 6) Compute output dirs (base + assets)
     const outBaseDir = path.join(process.cwd(), "public", "generated", fileKey);
     const assetsDir = path.join(outBaseDir, "assets");
 
     // 7) Prepare IMAGE fill assets (bitmaps) into /assets
-    const figmaToken = process.env.FIGMA_TOKEN;
-    if (!figmaToken) {
-      throw new Error(
-        "FIGMA_TOKEN is not set. Add it to .env.local for image export."
-      );
-    }
-
     const imageAssets = await prepareImageAssets({
       fileKey,
       frames: classifiedFrames,
       publicAssetsDir: assetsDir,
-      figmaToken,
       scale: 2,
       format: "png",
       useCache,
+      fileLastModified: lastModified,
     });
 
     // 8) Build CSS and HTML
@@ -97,6 +92,7 @@ export async function POST(req: Request) {
       fileKey,
       frames: classifiedFrames,
       publicDir: finalAssetsDir,
+      fileLastModified: lastModified,
     });
 
     // 11) Emit manifest (nodes.json)
@@ -124,12 +120,12 @@ export async function POST(req: Request) {
     const message =
       err instanceof Error ? err.message : "Unexpected error occurred.";
 
-    //non-secret hints based on common Figma responses
+    // non-secret hints based on common Figma responses
     const hint =
       message.includes("404") || message.toLowerCase().includes("not found")
         ? "Check the fileKey and ensure your token user can access the file."
         : message.includes("401") || message.includes("403")
-        ? "Verify FIGMA_TOKEN is set and has file_content:read scope (and file_metadata:read if use)."
+        ? "Verify FIGMA_TOKEN is set and has file_content:read scope (and file_metadata:read if used)."
         : message.includes("429")
         ? "Hit a rate limit. Try again in a minute; disk cache will reduce calls next time."
         : "See server logs for details.";

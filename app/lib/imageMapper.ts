@@ -10,7 +10,7 @@ const FIGMA_API = "https://api.figma.com/v1";
 
 type ExportBitmapOpts = {
   scale?: number;
-  format?: "png" | "jpg"; // PNG as default/safe
+  format?: "png" | "jpg"; // PNG as default
   useCache?: boolean;
 };
 
@@ -23,31 +23,78 @@ export type ImageAssetMap = Record<
   }
 >;
 
+type BitmapCacheMeta = {
+  lastModified: string | null;
+};
+
+function getRequiredEnv(name: string): string {
+  const val = process.env[name];
+  if (!val) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return val;
+}
+
+function authHeaders(): HeadersInit {
+  const token = getRequiredEnv("FIGMA_TOKEN");
+  return {
+    "X-Figma-Token": token,
+  };
+}
+
 /**
  * High-level: find IMAGE-fill nodes, export bitmaps, and copy them into the
  * public assets directory. Returns an imageAssetMap the CSS layer can use.
+ *
+ * - Uses lastModified-aware cache for bitmaps per fileKey.
  */
 export async function prepareImageAssets(params: {
   fileKey: string;
   frames: ClassifiedNode[];
   publicAssetsDir: string;
-  figmaToken: string;
   scale?: number;
   format?: "png" | "jpg";
   useCache?: boolean; // default true
+  fileLastModified?: string; // for invalidation
 }): Promise<ImageAssetMap> {
   const {
     fileKey,
     frames,
     publicAssetsDir,
-    figmaToken,
     scale = 2,
     format = "png",
     useCache = true,
+    fileLastModified,
   } = params;
 
   const imageNodes = collectImageFillNodes(frames);
   if (imageNodes.length === 0) return {};
+
+  const cacheRoot = path.join(
+    process.cwd(),
+    ".cache",
+    "figma",
+    "bitmaps",
+    fileKey
+  );
+
+  // Invalidate bitmap cache if file has changed on Figma's side
+  if (useCache && fileLastModified) {
+    const meta = await readBitmapCacheMeta(cacheRoot);
+    const cachedLastModified = meta?.lastModified ?? null;
+    if (cachedLastModified && cachedLastModified !== fileLastModified) {
+      try {
+        await fs.rm(cacheRoot, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(
+          `Failed to clear stale bitmap cache for fileKey=${fileKey}`,
+          err
+        );
+      }
+    }
+  }
+
+  await fs.mkdir(cacheRoot, { recursive: true });
 
   // 1) Export from Figma (to .cache)
   const cacheMap = await exportNodeBitmaps(
@@ -57,8 +104,8 @@ export async function prepareImageAssets(params: {
       scale,
       format,
       useCache,
-      figmaToken,
-    }
+    },
+    cacheRoot
   );
 
   // 2) Mirror into /public/generated/<fileKey>/assets
@@ -67,7 +114,7 @@ export async function prepareImageAssets(params: {
   const out: ImageAssetMap = {};
   for (const info of imageNodes) {
     const cached = cacheMap[info.nodeId];
-    if (!cached) continue; // could not export (rare)
+    if (!cached) continue; // export failed for this node
 
     const basename = `${safeId(info.nodeId)}@${scale}x.${format}`;
     const dest = path.join(publicAssetsDir, basename);
@@ -80,6 +127,11 @@ export async function prepareImageAssets(params: {
     };
   }
 
+  // Update bitmap cache metadata
+  if (fileLastModified) {
+    await writeBitmapCacheMeta(cacheRoot, { lastModified: fileLastModified });
+  }
+
   return out;
 }
 
@@ -87,51 +139,67 @@ export async function prepareImageAssets(params: {
  * Walk the classified tree and collect nodes that:
  *  - will be rendered as HTML (not full-SVG),
  *  - have at least one IMAGE fill.
+ *
+ * Deduped by nodeId and sorted for deterministic output.
  */
 function collectImageFillNodes(frames: ClassifiedNode[]): ImageFillInfo[] {
-  const list: ImageFillInfo[] = [];
+  const map = new Map<string, ImageFillInfo>();
 
   const traverse = (n: ClassifiedNode) => {
-    //only attach CSS background images to elements that are rendering as HTML.
+    // only attach CSS background images to elements that are rendering as HTML.
     if (n.renderAs === "html" && Array.isArray(n.style?.fills)) {
-      const imgFill = n.style.fills.find((f: Fill) => f.kind === "image") as
-        | Extract<Fill, { kind: "image" }>
-        | undefined;
-      if (imgFill && imgFill.imageRef) {
-        list.push({ nodeId: n.id, scaleMode: imgFill.scaleMode });
+      const fills = n.style.fills as Fill[];
+      const imgFills = fills.filter((f) => f.kind === "image") as Extract<
+        Fill,
+        { kind: "image" }
+      >[];
+
+      if (imgFills.length > 0) {
+        const primary = imgFills[0]; // currently only support one image fill per node
+        if (primary.imageRef) {
+          if (!map.has(n.id)) {
+            map.set(n.id, {
+              nodeId: n.id,
+              scaleMode: primary.scaleMode,
+            });
+          }
+          // TODO: If there are multiple image fills, keep the first and log a warning here.
+        }
       }
     }
     n.children.forEach(traverse);
   };
 
   frames.forEach(traverse);
-  return list;
+
+  return Array.from(map.values()).sort((a, b) =>
+    a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0
+  );
 }
 
 /**
  * Export node bitmaps via Figma "images" endpoint (format=png/jpg).
- * Caches into ".cache/figma/bitmaps/<fileKey>/<nodeId>@{scale}x.{ext}"
+ * Caches into ".cache/figma/bitmaps/<fileKey>/<safeId(nodeId)>@{scale}x.{ext}"
  */
 async function exportNodeBitmaps(
   fileKey: string,
   nodeIds: string[],
-  options: ExportBitmapOpts & { figmaToken: string }
+  options: ExportBitmapOpts,
+  cacheRoot: string
 ): Promise<Record<string, string>> {
-  const { scale = 2, format = "png", useCache = true, figmaToken } = options;
+  const { scale = 2, format = "png", useCache = true } = options;
 
-  const cacheRoot = path.join(
-    process.cwd(),
-    ".cache",
-    "figma",
-    "bitmaps",
-    fileKey
-  );
   await fs.mkdir(cacheRoot, { recursive: true });
+
+  // Dedup and sort nodeIds for deterministic behavior
+  const uniqueSortedIds = Array.from(new Set(nodeIds)).sort((a, b) =>
+    a < b ? -1 : a > b ? 1 : 0
+  );
 
   // Split into cached vs missing
   const toFetch: string[] = [];
   const result: Record<string, string> = {};
-  for (const id of nodeIds) {
+  for (const id of uniqueSortedIds) {
     const destinationPath = path.join(
       cacheRoot,
       `${safeId(id)}@${scale}x.${format}`
@@ -151,7 +219,7 @@ async function exportNodeBitmaps(
   url.searchParams.set("scale", String(scale));
 
   const res = await fetch(url.toString(), {
-    headers: { "X-Figma-Token": figmaToken },
+    headers: authHeaders(),
     cache: "no-store",
   });
   if (!res.ok) {
@@ -184,6 +252,31 @@ async function exportNodeBitmaps(
   }
 
   return result;
+}
+
+// --- bitmap cache meta helpers ---
+
+async function readBitmapCacheMeta(
+  cacheRoot: string
+): Promise<BitmapCacheMeta | null> {
+  const metaPath = path.join(cacheRoot, "__meta.json");
+  if (!(await exists(metaPath))) return null;
+  try {
+    const raw = await fs.readFile(metaPath, "utf8");
+    return JSON.parse(raw) as BitmapCacheMeta;
+  } catch (err) {
+    console.warn("Failed to read bitmap cache meta, ignoring cache", err);
+    return null;
+  }
+}
+
+async function writeBitmapCacheMeta(
+  cacheRoot: string,
+  meta: BitmapCacheMeta
+): Promise<void> {
+  await fs.mkdir(cacheRoot, { recursive: true });
+  const metaPath = path.join(cacheRoot, "__meta.json");
+  await fs.writeFile(metaPath, JSON.stringify(meta), "utf8");
 }
 
 // --- small util---
