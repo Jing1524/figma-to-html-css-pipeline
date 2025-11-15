@@ -2,14 +2,14 @@
 .n-1_75{position:absolute;left:0px;top:0px;width:393px;height:852px;background:rgba(250,250,250,1);border-radius:32px;}
 .n-1_110{position:absolute;left:0px;top:831px;width:393px;height:21px;}
 .n-1_111{position:absolute;left:127px;top:8px;width:139px;height:5px;background:rgba(44,25,77,1);border-radius:100px;}
-.n-1_112{position:absolute;left:32px;top:170px;width:154px;height:58px;color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:48px;line-height:57.6px;letter-spacing:-0.96px;white-space:pre-wrap;}
-.n-1_114{display:flex;position:relative;flex-direction:column;gap:0px;padding:0px 0px 0px 0px;width:329px;height:117px;}
-.n-1_115{display:flex;position:relative;flex-direction:row;gap:10px;padding:20px 16px 20px 16px;align-items:center;width:329px;height:58px;border:1px solid rgba(215,215,215,1);border-radius:8px 8px 0px 0px;}
-.n-1_116{color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:15px;line-height:18px;letter-spacing:-0.3px;white-space:pre-wrap;}
-.n-1_117{display:flex;position:relative;flex-direction:row;gap:10px;padding:20px 16px 20px 16px;align-items:center;width:329px;height:59px;border:1px solid rgba(215,215,215,1);border-radius:0px 0px 8px 8px;}
-.n-1_118{color:rgba(192,192,192,1);font-family:Inter, system-ui, sans-serif;font-size:15px;line-height:18px;letter-spacing:-0.3px;white-space:pre-wrap;}
-.n-1_120{display:flex;position:relative;flex-direction:column;gap:8px;padding:0px 0px 0px 0px;align-items:center;justify-content:center;width:361px;height:46px;}
-.n-1_123{color:rgba(255,255,255,1);font-family:Inter, system-ui, sans-serif;font-size:15px;line-height:22px;letter-spacing:-0.15px;white-space:pre-wrap;}
-.n-1_125{display:flex;position:relative;flex-direction:column;gap:8px;padding:0px 0px 0px 0px;align-items:center;justify-content:center;width:361px;height:46px;}
-.n-1_126{color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:15px;line-height:22px;letter-spacing:-0.15px;white-space:pre-wrap;}
-.n-1_127{position:absolute;left:16px;top:778px;width:361px;height:37px;color:rgba(54,51,65,0.800000011920929);font-family:Inter, system-ui, sans-serif;font-size:13px;line-height:15.6px;letter-spacing:-0.26px;white-space:pre-wrap;}
+.n-1_112{position:absolute;left:32px;top:170px;width:154px;height:58px;color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:48px;font-weight:700;line-height:57.6px;letter-spacing:-0.96px;text-align:left;white-space:pre-wrap;}
+.n-1_114{position:absolute;left:32px;top:252px;width:329px;height:117px;}
+.n-1_115{position:absolute;left:0px;top:0px;width:329px;height:58px;border:1px solid rgba(215,215,215,1);border-radius:8px 8px 0px 0px;}
+.n-1_116{position:absolute;left:16px;top:20px;width:120px;height:18px;color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:15px;font-weight:500;line-height:18px;letter-spacing:-0.3px;text-align:left;white-space:pre-wrap;}
+.n-1_117{position:absolute;left:0px;top:58px;width:329px;height:59px;border:1px solid rgba(215,215,215,1);border-radius:0px 0px 8px 8px;}
+.n-1_118{position:absolute;left:16px;top:20.5px;width:69px;height:18px;color:rgba(192,192,192,1);font-family:Inter, system-ui, sans-serif;font-size:15px;font-weight:500;line-height:18px;letter-spacing:-0.3px;text-align:left;white-space:pre-wrap;}
+.n-1_120{position:absolute;left:16px;top:662px;width:361px;height:46px;}
+.n-1_123{position:absolute;left:156px;top:12px;width:49px;height:22px;color:rgba(255,255,255,1);font-family:Inter, system-ui, sans-serif;font-size:15px;font-weight:600;line-height:22px;letter-spacing:-0.15px;text-align:center;white-space:pre-wrap;}
+.n-1_125{position:absolute;left:16px;top:720px;width:361px;height:46px;}
+.n-1_126{position:absolute;left:125.5px;top:12px;width:110px;height:22px;color:rgba(54,51,65,1);font-family:Inter, system-ui, sans-serif;font-size:15px;font-weight:600;line-height:22px;letter-spacing:-0.15px;text-align:center;white-space:pre-wrap;}
+.n-1_127{position:absolute;left:16px;top:778px;width:361px;height:37px;color:rgba(54,51,65,0.800000011920929);font-family:Inter, system-ui, sans-serif;font-size:13px;font-weight:500;line-height:15.6px;letter-spacing:-0.26px;text-align:center;white-space:pre-wrap;}

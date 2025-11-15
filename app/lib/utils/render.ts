@@ -168,11 +168,39 @@ export function pushEffects(rules: string[], effects: Effect[]) {
 export function typographyRules(t: Typography): string[] {
   const out: string[] = [];
   const fontFamily = (t.fontFamily || "").trim();
+
   out.push(`font-family:${fontFamily}, system-ui, sans-serif;`);
   out.push(`font-size:${px(t.fontSize)};`);
+
+  if (t.fontWeight && Number.isFinite(t.fontWeight)) {
+    out.push(`font-weight:${t.fontWeight};`);
+  }
+
   if (t.lineHeightPx) out.push(`line-height:${px(t.lineHeightPx)};`);
   if (t.letterSpacing) out.push(`letter-spacing:${px(t.letterSpacing)};`);
-  // text align maps on container; keep minimal here
+
+  if (t.textAlignHorizontal) {
+    const align =
+      t.textAlignHorizontal === "CENTER"
+        ? "center"
+        : t.textAlignHorizontal === "RIGHT"
+        ? "right"
+        : t.textAlignHorizontal === "JUSTIFIED"
+        ? "justify"
+        : "left";
+    out.push(`text-align:${align};`);
+  }
+
+  if (t.textDecoration && t.textDecoration !== "NONE") {
+    const deco =
+      t.textDecoration === "UNDERLINE"
+        ? "underline"
+        : t.textDecoration === "STRIKETHROUGH"
+        ? "line-through"
+        : "none";
+    out.push(`text-decoration:${deco};`);
+  }
+
   return out;
 }
 
