@@ -43,7 +43,7 @@ This approach generalizes to any Figma mock by analyzing node types and their pr
 
 **Endpoint**: GET /v1/files/:fileKey -> Returns document tree, styles, and component metadata.
 
-              GET /v1/images/:fileKey?ids=...&format=svg|png -> Used for vector or masked nodes requiring SVG fallback.
+GET /v1/images/:fileKey?ids=...&format=svg|png -> Used for vector or masked nodes requiring SVG fallback.
 
 **Authentication**: FIGMA_TOKEN from environment passed in the request header.
 
