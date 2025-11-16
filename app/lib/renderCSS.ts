@@ -23,55 +23,76 @@ export function buildStyles(
     traverse(frame, (node) => {
       const cls = cssClass(node.id);
       const rules: string[] = [];
+      const layout = node.layout || {};
+      const isText = node.renderAs === "html-text";
 
-      // --- Layout ---
-      if (node.layout.display === "absolute") {
-        const { x = 0, y = 0, width, height } = node.layout;
-        rules.push(`position:absolute;left:${px(x)};top:${px(y)};`);
-        if (width != null) rules.push(`width:${px(width)};`);
-        if (height === 'auto') {
-          rules.push('height:auto;');
-        } else if (height != null) {
-          rules.push(`height:${px(height)};`);
-        }
-      } else if (node.layout.display === "flex") {
-        const { direction, gap, padding, align, justify, width, height } =
-          node.layout;
-        rules.push(`display:flex;`);
-        rules.push(`position:relative;`);
-        if (direction) rules.push(`flex-direction:${direction};`);
+      // --- Layout: flex properties (can combine with absolute/relative) ---
+      if (layout.display === "flex") {
+        const {
+          flexDirection,
+          gap,
+          paddingTop,
+          paddingRight,
+          paddingBottom,
+          paddingLeft,
+          alignItems,
+          justifyContent,
+        } = layout;
+
+        rules.push("display:flex;");
+
+        if (flexDirection) rules.push(`flex-direction:${flexDirection};`);
         if (gap != null) rules.push(`gap:${px(gap)};`);
-        if (padding) {
+
+        const hasPadding =
+          paddingTop != null ||
+          paddingRight != null ||
+          paddingBottom != null ||
+          paddingLeft != null;
+
+        if (hasPadding) {
           rules.push(
-            `padding:${px(padding.top)} ${px(padding.right)} ${px(
-              padding.bottom
-            )} ${px(padding.left)};`
+            `padding:${px(paddingTop ?? 0)} ${px(paddingRight ?? 0)} ${px(
+              paddingBottom ?? 0
+            )} ${px(paddingLeft ?? 0)};`
           );
         }
-        if (align) {
-          const alignCss =
-            align === "start"
-              ? "flex-start"
-              : align === "end"
-              ? "flex-end"
-              : align; // 'center' | 'stretch'
-          if (alignCss) rules.push(`align-items:${alignCss};`);
+
+        if (alignItems) {
+          rules.push(`align-items:${alignItems};`);
         }
-        if (justify) {
-          const justifyCss =
-            justify === "start"
-              ? "flex-start"
-              : justify === "end"
-              ? "flex-end"
-              : justify; // 'center' | 'space-between'
-          if (justifyCss) rules.push(`justify-content:${justifyCss};`);
+        if (justifyContent) {
+          rules.push(`justify-content:${justifyContent};`);
         }
-        if (width != null) rules.push(`width:${px(width)};`);
-        if (height === 'auto') {
-          rules.push('height:auto;');
-        } else if (height != null) {
-          rules.push(`height:${px(height as number)};`);
+      }
+
+      // --- Layout: positioning (absolute / relative) ---
+      if (layout.position === "absolute") {
+        const { x = 0, y = 0 } = layout;
+        rules.push(`position:absolute;left:${px(x)};top:${px(y)};`);
+      } else if (layout.position === "relative") {
+        rules.push("position:relative;");
+      }
+
+      // --- Layout: sizing ---
+      if (!isText && layout.width != null) {
+        if (layout.width === "auto") {
+          rules.push("width:auto;");
+        } else {
+          rules.push(`width:${px(layout.width as number)};`);
         }
+      }
+      if (!isText && layout.height != null) {
+        if (layout.height === "auto") {
+          rules.push("height:auto;");
+        } else {
+          rules.push(`height:${px(layout.height as number)};`);
+        }
+      }
+
+      // --- Layout: margins (for any post-processing like vertical stacks) ---
+      if (layout.marginTop != null && layout.marginTop !== 0) {
+        rules.push(`margin-top:${px(layout.marginTop)};`);
       }
 
       // --- Visual style ---
@@ -122,7 +143,8 @@ export function buildStyles(
       }
 
       if (rules.length) {
-        chunks.push(`.${cls}{${rules.join("")}}`);
+        const css = `.${cls}{${rules.join("")}}`;
+        chunks.push(css);
       }
     });
   }

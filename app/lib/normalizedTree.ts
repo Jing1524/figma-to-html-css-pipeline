@@ -72,7 +72,8 @@ function toNormalized(
   node: AnyNode,
   warnings: string[],
   stats: any,
-  parentBox?: BoundingBox
+  parentBox?: BoundingBox,
+  parentLayoutMode: "NONE" | "HORIZONTAL" | "VERTICAL" = "NONE"
 ): NormalizedNode | null {
   stats.nodesTotal += 1;
 
@@ -86,19 +87,22 @@ function toNormalized(
   if (type === "image") stats.images += 1;
   if (type === "frame") stats.frames += 1;
 
-  const layout = mapLayout(node, parentBox);
   const style = mapStyle(node, warnings, stats);
 
   const text =
     type === "text" ? String((node as any).characters ?? "") : undefined;
 
   const thisBox = node.absoluteBoundingBox as BoundingBox | undefined;
-  const thisLayoutMode = String(node.layoutMode ?? "NONE");
-  // const thisHasAutoLayout =
-  //   thisLayoutMode === "HORIZONTAL" || thisLayoutMode === "VERTICAL";
+  const thisLayoutMode = String(node.layoutMode ?? "NONE") as
+    | "NONE"
+    | "HORIZONTAL"
+    | "VERTICAL";
+  const layout = mapLayout(node, parentBox, parentLayoutMode);
 
   const children = getArray(node.children)
-    .map((child) => toNormalized(child, warnings, stats, thisBox))
+    .map((child) =>
+      toNormalized(child, warnings, stats, thisBox, thisLayoutMode)
+    )
     .filter(Boolean) as NormalizedNode[];
 
   return { id, name, type, layout, style, text, children };
@@ -143,7 +147,11 @@ function mapType(node: AnyNode): NormalizedNode["type"] | null {
   }
 }
 
-function mapLayout(node: AnyNode, parentBox?: BoundingBox): LayoutModel {
+function mapLayout(
+  node: AnyNode,
+  parentBox?: BoundingBox,
+  parentLayoutMode: "NONE" | "HORIZONTAL" | "VERTICAL" = "NONE"
+): LayoutModel {
   const boundingBox = node.absoluteBoundingBox as BoundingBox | undefined;
 
   const absX = toNum(boundingBox?.x);
@@ -151,19 +159,126 @@ function mapLayout(node: AnyNode, parentBox?: BoundingBox): LayoutModel {
   const width = toNum(boundingBox?.width);
   const height = toNum(boundingBox?.height);
 
+  const layoutMode = String((node as any).layoutMode ?? "NONE") as
+    | "NONE"
+    | "HORIZONTAL"
+    | "VERTICAL";
+
+  const layoutPositioning = String(
+    (node as any).layoutPositioning ?? "AUTO"
+  ) as "AUTO" | "ABSOLUTE";
+
   const parentX = toNum(parentBox?.x, 0);
   const parentY = toNum(parentBox?.y, 0);
-
   const x = absX - parentX;
   const y = absY - parentY;
 
+  // 1) Auto-layout frame → flex container + outer position
+
+  if (layoutMode === "HORIZONTAL" || layoutMode === "VERTICAL") {
+    const primaryAxisAlign = String(
+      (node as any).primaryAxisAlignItems ?? "MIN"
+    ); // MIN | CENTER | MAX | SPACE_BETWEEN
+    const counterAxisAlign = String(
+      (node as any).counterAxisAlignItems ?? "MIN"
+    ); // MIN | CENTER | MAX | BASELINE
+
+    const itemSpacing = toNum((node as any).itemSpacing);
+
+    const paddingTop = toNum((node as any).paddingTop);
+    const paddingRight = toNum((node as any).paddingRight);
+    const paddingBottom = toNum((node as any).paddingBottom);
+    const paddingLeft = toNum((node as any).paddingLeft);
+
+    const layout: LayoutModel = {
+      display: "flex",
+      flexDirection: layoutMode === "HORIZONTAL" ? "row" : "column",
+      gap: itemSpacing,
+      paddingTop,
+      paddingRight,
+      paddingBottom,
+      paddingLeft,
+      justifyContent: mapPrimaryAxisAlign(primaryAxisAlign),
+      alignItems: mapCounterAxisAlign(counterAxisAlign),
+      width,
+      height,
+    };
+
+    // Parent is NOT auto-layout → keep absolute position
+    if (parentLayoutMode === "NONE") {
+      if (parentBox) {
+        layout.position = "absolute";
+        layout.x = x;
+        layout.y = y;
+      } else {
+        // top-level frame
+        layout.position = "relative";
+      }
+      return layout;
+    }
+
+    // Parent IS auto-layout:
+    //  - layoutPositioning: "AUTO" → flow as a flex item
+    //  - "ABSOLUTE" → absolute inside the flex parent
+    if (layoutPositioning === "ABSOLUTE") {
+      layout.position = "absolute";
+      layout.x = x;
+      layout.y = y;
+    } else {
+      layout.position = "relative"; // normal flex item
+    }
+
+    return layout;
+  }
+  // 2) Child of auto-layout parent & not explicitly absolute → normal flow
+  if (
+    (parentLayoutMode === "HORIZONTAL" || parentLayoutMode === "VERTICAL") &&
+    layoutPositioning === "AUTO"
+  ) {
+    return {
+      position: "relative",
+      width,
+      height,
+    };
+  }
+
+  // 3) Freeform / absolute fallback
   return {
-    display: "absolute",
+    display: "block",
+    position: "absolute",
     x,
     y,
     width,
     height,
   };
+}
+
+function mapPrimaryAxisAlign(figma: string): LayoutModel["justifyContent"] {
+  switch (figma) {
+    case "CENTER":
+      return "center";
+    case "MAX":
+      return "flex-end";
+    case "SPACE_BETWEEN":
+      return "space-between";
+    case "MIN":
+    default:
+      return "flex-start";
+  }
+}
+
+function mapCounterAxisAlign(figma: string): LayoutModel["alignItems"] {
+  switch (figma) {
+    case "CENTER":
+      return "center";
+    case "MAX":
+      return "flex-end";
+    case "STRETCH":
+      return "stretch";
+    case "MIN":
+    default:
+      return "flex-start";
+  }
 }
 
 function mapStyle(

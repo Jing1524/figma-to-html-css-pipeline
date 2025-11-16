@@ -5,11 +5,11 @@ import { fetchFileJson } from "@/app/lib/figmaClient";
 import { normalizeFile } from "@/app/lib/normalizedTree";
 import { classifyTree } from "@/app/lib/classifyNode";
 import { prepareImageAssets } from "@/app/lib/imageMapper";
-import { buildStyles } from "@/app/lib/renderCss";
-import { buildIndexHtml } from "@/app/lib/reanderHTML";
+import { buildIndexHtml } from "@/app/lib/renderHTML";
 import { emitSvgAssets } from "@/app/lib/renderSVG";
 import { emitManifest } from "@/app/lib/manifest";
 import { emitFiles } from "@/app/lib/emitFiles";
+import { buildStyles } from "@/app/lib/renderCss";
 
 // Force Node.js runtime avoid edge caching issues with fs operations
 export const runtime = "nodejs";

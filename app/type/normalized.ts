@@ -11,18 +11,35 @@ export interface NormalizedNode {
   children: NormalizedNode[];
 }
 
-export interface LayoutModel {
-  display: "flex" | "grid" | "absolute" | "block";
-  direction?: "row" | "column";
+export type LayoutModel = {
+  // generic box sizing
+  width?: number | "auto";
+  height?: number | "auto";
+
+  // positioning
+  position?: "static" | "relative" | "absolute";
+  x?: number;
+  y?: number;
+
+  // layout model
+  display?: "block" | "flex";
+  flexDirection?: "row" | "column";
+  justifyContent?:
+    | "flex-start"
+    | "center"
+    | "flex-end"
+    | "space-between"
+    | "space-around";
+  alignItems?: "flex-start" | "center" | "flex-end" | "stretch";
+
   gap?: number;
-  padding?: { top: number; right: number; bottom: number; left: number };
-  align?: "start" | "center" | "end" | "stretch";
-  justify?: "start" | "center" | "end" | "space-between";
-  width?: number; //px
-  height?: number | 'auto'; //px or 'auto'
-  x?: number; //px
-  y?: number; //px
-}
+
+  paddingTop?: number;
+  paddingRight?: number;
+  paddingBottom?: number;
+  paddingLeft?: number;
+  marginTop?: number;
+};
 
 export interface StyleModel {
   fills: Fill[];
