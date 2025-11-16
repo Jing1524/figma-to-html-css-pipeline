@@ -342,38 +342,91 @@ This makes it quick to iterate on the pipeline and visually inspect results.
 
 ---
 
-## 9. Future Improvements (Nice-to-Haves)
+## 9. Summary
 
-- introduce proper auto-layout handling (via flexbox or a layout engine such as Yoga) for:
+**Layout engine overview**
 
-  - Hug contents
+The converter is built to generalize to arbitrary Figma files, not just the provided sample. The core layout strategy is:
 
-  - Fill container behavior
+- Auto-layout frames → CSS flexbox
 
-  - Baseline alignment
+  - Figma layoutMode: HORIZONTAL | VERTICAL -> display: flex; flex-direction: row | column;
 
-- Smarter text layout:
+  - Figma itemSpacing -> gap
 
-  - Mixed-style spans
+  - Figma padding values -> CSS padding
 
-  - Rich text mappings (marks inside a single Figma text node)
+  - Figma primaryAxisAlignItems / counterAxisAlignItems -> justify-content / align-items
 
-- Component deduplication / reuse for repeated Figma components.
+- Positioning is parent-relative
 
-- CLI mode for:
+  - For frames that are not part of auto layout, the system uses Figma’s absoluteBoundingBox to compute positions relative to the parent frame, not the global canvas.
 
-  - Batch conversion
+  - That is, for each node:
+    x = absX - parentAbsX, y = absY - parentAbsY.
 
-  - Automated regression tests
+- Children of auto-layout frames
 
-  - CI integration.
+  - Children with layoutPositioning: "AUTO" are treated as normal flex items (no position:absolute).
 
----
+  - Children with layoutPositioning: "ABSOLUTE" are rendered as position:absolute inside the flex container.
 
-## 10. Summary
+- Visual styles
 
-This project’s goal is to programmatically translate Figma designs into clean, static HTML and CSS, focusing on fidelity, generalization, and clarity of engineering decisions.
+  - Fills → CSS background (solids, gradients, image fills).
 
-The current layout strategy intentionally uses Figma’s absoluteBoundingBox for all nodes, which guarantees deterministic, file-agnostic rendering at the designed size. Auto-layout subtleties are a known, documented limitation and are candidates for a future iteration that reintroduces more sophisticated layout handling (e.g., via flexbox or Yoga).
+  - Strokes → border with support for width, alignment, and gradient strokes (where possible).
 
-The architecture is intentionally simple, explainable, and expandable. It demonstrates sound judgment and keeps the door open for deeper layout fidelity in later versions.
+  - Text nodes → rendered as HTML text with Figma typography mapped to font-family, font-size, font-weight, line-height, letter-spacing, and text-align.
+
+**Known limitations / remaining visual discrepancies**
+
+Because the goal was to keep the system generic, there are still some visual mismatches in the provided sample, mostly driven by Figma’s freeform layout model and font rendering differences:
+
+- Freeform vertical stacks using absolute positioning
+
+  - Frames where layoutMode === "NONE" (i.e. not auto layout) are currently treated as freeform canvases.
+
+  - Siblings in those frames (e.g. the “Sign in” heading and the input card) are positioned using their parent-relative x/y from absoluteBoundingBox.
+
+  - This matches Figma’s coordinates, but small differences in browser font metrics vs Figma’s text engine can cause:
+
+    - Slight variations in effective text box height
+
+    - A reduced vertical gap or minor overlap (e.g. the heading getting very close to, or slightly overlapping, the card border)
+
+- Text vs frame height
+
+  - Figma’s layout engine and the browser don’t always compute text metrics identically (especially with line height and PostScript font specifics).
+
+  - The converter currently sets explicit heights on frame nodes (e.g. input containers) using Figma’s bounding box, which can make inputs appear a bit taller than in the Figma preview.
+
+  - This is a general trade-off: keeping frame heights from Figma preserves structure, but can exaggerate small differences in text metrics.
+
+- Root frame and centering
+
+  - The root frame is rendered at the Figma design width and centered in the viewport.
+
+  - Inner elements use their Figma x/width relative to this root.
+    This keeps most horizontal alignment correct, but any mismatch between the design width and the viewport can make asymmetries more noticeable.
+
+**How I would improve this with more time**
+
+The current system establishes a solid baseline: it parses arbitrary Figma files, normalizes geometry, maps auto-layout to flexbox, and renders HTML/CSS/SVG with high fidelity for most structures. But making it production-grade would require several deeper architectural upgrades.
+
+First, the converter should use a real auto-layout resolver rather than approximating Figma’s behavior. Figma’s auto-layout has many subtle interactions—especially when “Hug contents”, “Fill container”, or baseline alignment are involved—and a dedicated layout engine (such as Facebook’s Yoga) could interpret those rules consistently. A resolver would give us pixel-accurate results even in cases where absoluteBoundingBox is misleading or text metrics diverge from the browser.
+
+Second, text deserves a smarter layout pipeline. A single Figma text node can contain a dozen font styles, weights, and colors. The current implementation treats a text node as a uniform block. A more complete system would split text into mixed-style spans, mirror all marks (bold, italic, underline, letterSpacing changes), and preserve semantic grouping. That would dramatically reduce visual drift for designs with rich, nested text formatting.
+
+Third, many Figma files contain repeated components—icons, cards, button variants, list items. Detecting these at the classification stage and emitting reusable HTML components would cut down DOM size, improve readability, and better reflect how designers expect systems to scale. This would also open the door to framework-friendly output (React/Next/Vue), though that’s outside the current scope.
+
+Finally, it should grow into a proper CLI tool.
+A CLI mode would allow:
+
+- Batch-converting many frames or multiple Figma files at once
+
+- Running automated regression tests to catch visual differences early
+
+- Integrating the converter into CI pipelines to ensure design-to-HTML fidelity over time
+
+Taken together, these upgrades would transform the converter from a robust take-home assignment into a more complete design-engineering bridge—capable of handling complex Figma layouts and scaling across teams.
